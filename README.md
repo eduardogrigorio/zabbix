@@ -6,6 +6,8 @@
 
 [![Licença](https://img.shields.io/badge/licen%C3%A7a-AGPLv3-blue)](https://www.zabbix.com/br/license)
 [![Self-hosted](https://img.shields.io/badge/self--hosted-sim-success)](#-in%C3%ADcio-r%C3%A1pido)
+[![Zabbix](https://img.shields.io/badge/Zabbix-7.2.4-D40000)](#-in%C3%ADcio-r%C3%A1pido)
+[![Debian](https://img.shields.io/badge/Debian-12-A81D33?logo=debian&logoColor=white)](#-in%C3%ADcio-r%C3%A1pido)
 [![Docker](https://img.shields.io/badge/docker-compose-2496ED?logo=docker&logoColor=white)](#-docker)
 [![Docs](https://img.shields.io/badge/docs-PT--BR-informational)](https://www.zabbix.com/documentation/current/pt/manual/)
 
@@ -86,7 +88,7 @@ Muitas soluções comerciais de monitoramento cobram por host, por métrica ou p
 - Proxies para sites remotos, alta disponibilidade (a partir do 6.0), API JSON-RPC, templates da comunidade e [integrações oficiais](https://www.zabbix.com/br/integrations).
 
 **Implantação**
-- Pacotes Linux, containers Docker, imagens para nuvens públicas e [Zabbix Cloud](https://www.zabbix.com/br/cloud).
+- Pacotes Linux (incluindo Debian), containers Docker, imagens para nuvens públicas e [Zabbix Cloud](https://www.zabbix.com/br/cloud).
 
 ---
 
@@ -117,28 +119,69 @@ Com o **agente ativo**, o próprio agente inicia a conexão com o servidor ou pr
 
 ## 🚀 Início rápido
 
-Exemplo com **Ubuntu/Debian + PostgreSQL + Nginx**. Os nomes exatos de pacotes e do repositório mudam por versão e sistema operacional: gere os comandos corretos no [seletor oficial de downloads](https://www.zabbix.com/br/download) e use uma versão **LTS** em produção (veja a [política de ciclo de vida](https://www.zabbix.com/br/life_cycle_and_release_policy)).
+Guia de referência para **Debian 12 (Bookworm)** com **Zabbix 7.2.4**, **PostgreSQL + Nginx + Agent 2**.
 
-**Pré-requisitos:** servidor Linux dedicado, acesso `sudo`, portas 80/443 (web) e 10051 (servidor) liberadas conforme a sua rede.
+> ⚠️ **Sobre a versão 7.2.** A 7.2 é uma versão padrão (não LTS) e, segundo a [política de ciclo de vida](https://www.zabbix.com/br/life_cycle_and_release_policy), chegou ao fim do suporte em **31/12/2025**, sem novas correções de segurança. A 7.2.4 também não é a última da série. Use-a para laboratório, compatibilidade com um ambiente existente ou estudo. Para **produção**, prefira uma versão **LTS** suportada (hoje a 7.0 LTS) e, se ficar na 7.2, planeje a migração. Os passos abaixo valem para outras versões trocando o número `7.2` no endereço do repositório.
 
-### 1. Instalar o repositório e os pacotes
+Os comandos exatos por versão e sistema ficam no [seletor oficial de downloads](https://www.zabbix.com/br/download) (escolha *Debian 12*, banco PostgreSQL e servidor Nginx).
 
-🖥️ **No servidor Zabbix** (usuário com `sudo`):
+**Pré-requisitos:** servidor Debian dedicado (recomendado ao menos 2 vCPU e 4 GB de RAM para produção), acesso `root` ou `sudo`, e portas 80/443 (web) e 10051 (servidor) liberadas conforme a sua rede.
+
+> Em instalações mínimas do Debian o `sudo` pode não estar instalado. Nesse caso, entre como `root` (`su -`) e remova o `sudo` dos comandos.
+
+### 1. Instalar o PostgreSQL
+
+🖥️ **No servidor Zabbix:**
 
 ```bash
-# Baixe o pacote do repositório gerado em https://www.zabbix.com/br/download
-# (escolha versão, SO, banco PostgreSQL e servidor web Nginx)
-sudo dpkg -i zabbix-release_*_all.deb
 sudo apt update
-
-# Pacotes típicos (confirme os nomes na página de download da sua versão)
-sudo apt install zabbix-server-pgsql zabbix-frontend-php zabbix-nginx-conf \
-                 zabbix-sql-scripts zabbix-agent2
+sudo apt install -y postgresql
 ```
 
-### 2. Criar o banco de dados
+### 2. Adicionar o repositório do Zabbix
 
-🖥️ **No servidor Zabbix**, com o PostgreSQL instalado:
+🖥️ **No servidor Zabbix:**
+
+```bash
+wget https://repo.zabbix.com/zabbix/7.2/release/debian/pool/main/z/zabbix-release/zabbix-release_latest_7.2+debian12_all.deb
+sudo dpkg -i zabbix-release_latest_7.2+debian12_all.deb
+sudo apt update
+```
+
+> Se o `wget` falhar, copie o link atualizado na [página de downloads](https://www.zabbix.com/br/download). O repositório pode ter sido reorganizado depois do fim do suporte da série.
+
+### 3. Instalar servidor, frontend e agente (fixando a 7.2.4)
+
+O repositório entrega por padrão a versão mais recente da série. Para ficar exatamente na **7.2.4**, liste as versões disponíveis e informe a desejada.
+
+🖥️ **No servidor Zabbix:**
+
+```bash
+# Lista as versões disponíveis; procure a 7.2.4
+apt-cache madison zabbix-server-pgsql
+```
+
+Instalação sem fixar a versão (instala a mais recente da série 7.2):
+
+```bash
+sudo apt install -y zabbix-server-pgsql zabbix-frontend-php php8.2-pgsql \
+                    zabbix-nginx-conf zabbix-sql-scripts zabbix-agent2
+```
+
+Para a **7.2.4**, acrescente `=VERSAO_EXATA` (copie a string da saída do `madison`, algo como `1:7.2.4-1+debian12`) a cada pacote Zabbix e depois impeça atualizações acidentais:
+
+```bash
+sudo apt install -y zabbix-server-pgsql=VERSAO_EXATA zabbix-frontend-php=VERSAO_EXATA \
+                    zabbix-nginx-conf=VERSAO_EXATA zabbix-sql-scripts=VERSAO_EXATA \
+                    zabbix-agent2=VERSAO_EXATA php8.2-pgsql
+sudo apt-mark hold zabbix-server-pgsql zabbix-frontend-php zabbix-nginx-conf zabbix-sql-scripts zabbix-agent2
+```
+
+> Se a 7.2.4 não aparecer na lista, o repositório não a oferece mais; nesse caso, será instalada a mais recente da série ou será preciso obter o pacote por outro meio.
+
+### 4. Criar o banco de dados
+
+🖥️ **No servidor Zabbix:**
 
 ```bash
 sudo -u postgres createuser --pwprompt zabbix
@@ -146,7 +189,7 @@ sudo -u postgres createdb -O zabbix zabbix
 zcat /usr/share/zabbix-sql-scripts/postgresql/server.sql.gz | sudo -u zabbix psql zabbix
 ```
 
-### 3. Configurar o servidor
+### 5. Configurar o servidor
 
 🖥️ **No servidor Zabbix**, edite `/etc/zabbix/zabbix_server.conf`:
 
@@ -156,20 +199,51 @@ DBUser=zabbix
 DBPassword=SUA_SENHA_FORTE
 ```
 
-### 4. Iniciar os serviços
+### 6. Configurar o Nginx
 
-🖥️ **No servidor Zabbix**:
+🖥️ **No servidor Zabbix**, edite `/etc/zabbix/nginx.conf`, descomente e ajuste `listen` e `server_name`:
 
-```bash
-sudo systemctl restart zabbix-server zabbix-agent2 nginx php*-fpm
-sudo systemctl enable zabbix-server zabbix-agent2 nginx php*-fpm
+```nginx
+listen          80;
+server_name     zabbix.seudominio.com.br;
 ```
 
-> O nome do serviço PHP-FPM varia por versão (ex.: `php8.3-fpm`). Ajuste conforme o seu sistema.
+Se a porta 80 já estiver em uso pelo site padrão do Nginx, desative-o ou use outra porta (ex.: `8080`):
 
-### 5. Primeiro acesso
+```bash
+sudo rm -f /etc/nginx/sites-enabled/default
+```
 
-🌐 **No navegador**, abra `http://SEU_SERVIDOR/` e conclua o assistente de instalação do frontend. O login inicial padrão da documentação é `Admin` / `zabbix`: **troque a senha imediatamente** (veja [Segurança](#-seguran%C3%A7a)).
+### 7. Gerar o locale pt_BR (para a interface em português)
+
+🖥️ **No servidor Zabbix:**
+
+```bash
+sudo dpkg-reconfigure locales   # marque pt_BR.UTF-8 UTF-8
+```
+
+### 8. Iniciar os serviços
+
+🖥️ **No servidor Zabbix** (no Debian 12 o PHP-FPM é `php8.2-fpm`):
+
+```bash
+sudo systemctl restart zabbix-server zabbix-agent2 nginx php8.2-fpm
+sudo systemctl enable zabbix-server zabbix-agent2 nginx php8.2-fpm
+sudo systemctl status zabbix-server
+```
+
+### 9. Primeiro acesso
+
+🌐 **No navegador**, abra `http://zabbix.seudominio.com.br/` (ou o IP do servidor) e conclua o assistente do frontend, informando o banco `zabbix`, o usuário `zabbix` e a senha definida no passo 4. O login inicial padrão da documentação é `Admin` / `zabbix`: **troque a senha imediatamente** (veja [Segurança](#-seguran%C3%A7a)).
+
+Se usar firewall (ex.: UFW), libere as portas necessárias:
+
+🖥️ **No servidor Zabbix:**
+
+```bash
+sudo ufw allow 80,443/tcp
+sudo ufw allow 10051/tcp
+```
 
 ---
 
@@ -182,7 +256,7 @@ O projeto mantém imagens oficiais (`zabbix/zabbix-server-pgsql`, `zabbix/zabbix
 ```bash
 git clone https://github.com/zabbix/zabbix-docker.git
 cd zabbix-docker
-# Opcional: use a branch/tag da versão LTS que você pretende rodar
+# Opcional: use a branch/tag correspondente à versão desejada (ex.: série 7.2)
 docker compose -f ./compose_pgsql.yaml up -d
 docker compose -f ./compose_pgsql.yaml ps
 ```
@@ -212,12 +286,12 @@ Demais parâmetros (cache, pollers, timeouts, TLS) estão descritos na [document
 
 O agente roda no equipamento a ser monitorado. O **Zabbix agent 2** é a opção recomendada para instalações novas.
 
-### Linux
+### Linux (Debian)
 
-🖥️ **No host monitorado** (após adicionar o repositório Zabbix da mesma versão):
+🖥️ **No host Debian monitorado**, adicione o mesmo repositório do Zabbix (passo 2 do [Início rápido](#-in%C3%ADcio-r%C3%A1pido)) e instale o agente na versão compatível com o servidor (um agente da mesma série ou mais antigo que o servidor é o cenário mais seguro):
 
 ```bash
-sudo apt install zabbix-agent2
+sudo apt install -y zabbix-agent2
 ```
 
 Edite `/etc/zabbix/zabbix_agent2.conf`:
@@ -230,6 +304,12 @@ Hostname=NOME_DO_HOST_IGUAL_AO_CADASTRADO_NO_ZABBIX
 
 ```bash
 sudo systemctl enable --now zabbix-agent2
+```
+
+Se houver firewall no host monitorado (modo passivo), libere a porta do agente apenas para o servidor:
+
+```bash
+sudo ufw allow from IP_DO_SERVIDOR to any port 10050 proto tcp
 ```
 
 ### Windows
@@ -283,7 +363,7 @@ Aqui o código aberto faz diferença. Os pontos abaixo são caminhos gerais; par
 - ✅ Use criptografia (TLS/PSK) na comunicação entre agentes, proxies e servidor
 - ✅ Restrinja portas (10050/10051) por firewall aos IPs necessários
 - ✅ Use senhas fortes e exclusivas no banco de dados
-- ✅ Mantenha o Zabbix na versão suportada e acompanhe os [avisos de segurança](https://www.zabbix.com/br/security_advisories)
+- ✅ Mantenha o Zabbix em uma versão **com suporte** (a série 7.2 já encerrou o suporte) e acompanhe os [avisos de segurança](https://www.zabbix.com/br/security_advisories)
 - ✅ Faça backup do banco e dos arquivos de configuração, e teste a restauração
 
 ---
@@ -329,7 +409,8 @@ A comparação abaixo trata de **modelo e filosofia**, não de recursos ou preç
 
 ## 📌 Roadmap do repositório
 
-- [ ] Guia de instalação em Ubuntu LTS com screenshots
+- [ ] Guia de instalação em Debian com screenshots
+- [ ] Guia de migração da 7.2 para uma versão LTS
 - [ ] Biblioteca de templates e dashboards
 - [ ] Exemplos de webhooks (chamados, mensageiros)
 - [ ] Scripts de backup e restauração
